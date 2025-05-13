@@ -1,80 +1,260 @@
+// // // import { Request, Response } from 'express';
+// // // import CoachInfo from '../models/coachInfo';
+// // // import TimeSlot from '../models/timeSlots';
+
+// // // const getWorkouts = async (req: Request, res: Response): Promise<void> => {
+// // //   try {
+// // //     const { activity, date, time, coachName } = req.params;
+
+// // //     const query: any = {};
+// // //     if (activity) query.specializations = { $in: [activity] };
+// // //     if (coachName) query['userId.firstName'] = { $regex: coachName, $options: 'i' };
+
+// // //     const coaches = await CoachInfo.find(query).populate('userId');
+
+// // //     const coachData = await Promise.all(
+// // //       coaches.map(async (coach) => {
+// // //         let availableTimes: string[] = [];
+// // //         let slotDate = '';
+
+// // //         if (date) {
+// // //           // ✅ Convert "08-05-2025" to "2025-05-08"
+// // //           const [day, month, year] = date.split('-');
+// // //           const formattedDate = `${year}-${month}-${day}`;
+// // //           const startOfDay = new Date(formattedDate);
+// // //           startOfDay.setHours(0, 0, 0, 0);
+
+// // //           const endOfDay = new Date(formattedDate);
+// // //           endOfDay.setHours(23, 59, 59, 999);
+
+// // //           const slots = await TimeSlot.find({
+// // //             coachId: coach._id,
+// // //             date: {
+// // //               $gte: startOfDay,
+// // //               $lte: endOfDay,
+// // //             },
+// // //           });
+
+// // //           if (slots.length > 0) {
+// // //             // Use the actual date from slot
+// // //             slotDate = slots[0].date.toISOString().split('T')[0];
+// // //           }
+
+// // //           availableTimes = slots.flatMap((slot) =>
+// // //             slot.timeSlots
+// // //               .filter((t) => !t.isBooked)
+// // //               .map((t) => `${t.startTime} - ${t.endTime}`)
+// // //           );
+// // //         }
+
+// // //         return {
+// // //           id: coach._id,
+// // //           name: (coach.userId as any)?.firstName || '',
+// // //           title: coach.title,
+// // //           imageUrl: coach.profileImage,
+// // //           rating: coach.rating,
+// // //           type: activity || coach.specializations[0] || '',
+// // //           date: slotDate, // ✅ Now should correctly show date
+// // //           availableTimes,
+// // //         };
+// // //       })
+// // //     );
+
+// // //     res.status(200).json({ content: coachData });
+// // //   } catch (error) {
+// // //     console.error('Error fetching workouts:', error);
+// // //     res.status(500).json({ message: 'Failed to fetch workouts' });
+// // //   }
+// // // };
+
+// // // export { getWorkouts };
+
+
+// // // import { Request, Response } from 'express';
+// // // import CoachInfo from '../models/coachInfo';
+// // // import TimeSlot from '../models/timeSlots';
+// // // import UserInfo from '../models/userInfo';
+// // // import mongoose from 'mongoose';
+
+// // // export const searchCoaches = async (req: Request, res: Response): Promise<void> => {
+// // //   try {
+// // //     const { activity, date, time, coachName, page = '1', limit = '10' } = req.query;
+// // //     const pageNum = parseInt(page as string, 10);
+// // //     const limitNum = parseInt(limit as string, 10);
+// // //     const skip = (pageNum - 1) * limitNum;
+
+// // //     // Step 1: Find coaches that match the activity and name criteria
+// // //     let coachQuery: any = {};
+
+// // //     // Filter by specialization if provided
+// // //     if (activity && activity !== '') {
+// // //       coachQuery.specializations = { $in: [activity] };
+// // //     }
+
+// // //     // Get coaches based on the initial query
+// // //     let coaches = await CoachInfo.find(coachQuery).populate('userId').lean();
+
+// // //     // Filter by coach name if provided
+// // //     if (coachName && coachName !== '') {
+// // //       const nameRegex = new RegExp(String(coachName), 'i');
+// // //       coaches = coaches.filter(coach => {
+// // //         const user = coach.userId as any;
+// // //         if (!user) return false;
+
+// // //         const fullName = `${user.firstName} ${user.lastName}`;
+// // //         return nameRegex.test(user.firstName) || 
+// // //                nameRegex.test(user.lastName) || 
+// // //                nameRegex.test(fullName);
+// // //       });
+// // //     }
+
+// // //     // Get coach IDs for time slot filtering
+// // //     const coachIds = coaches.map(coach => coach._id);
+
+// // //     // Step 2: Filter by date and time if provided
+// // //     let filteredCoachIds = [...coachIds];
+
+// // //     if (date && date !== '') {
+// // //       // Parse the date in YYYY-MM-DD format
+// // //       const searchDate = new Date(date as string);
+// // //       const startOfDay = new Date(searchDate);
+// // //       startOfDay.setHours(0, 0, 0, 0);
+
+// // //       const endOfDay = new Date(searchDate);
+// // //       endOfDay.setHours(23, 59, 59, 999);
+
+// // //       // Build time slot query
+// // //       let timeSlotQuery: any = {
+// // //         coachId: { $in: coachIds },
+// // //         date: {
+// // //           $gte: startOfDay,
+// // //           $lte: endOfDay
+// // //         }
+// // //       };
+
+// // //       // Add time filter if provided
+// // //       if (time && time !== '') {
+// // //         timeSlotQuery['timeSlots'] = {
+// // //           $elemMatch: {
+// // //             startTime: time,
+// // //             isBooked: false
+// // //           }
+// // //         };
+// // //       }
+
+// // //       // Find time slots matching the criteria
+// // //       const availableSlots = await TimeSlot.find(timeSlotQuery).lean();
+
+// // //       // Update filtered coach IDs
+// // //       filteredCoachIds = availableSlots.map(slot => slot.coachId);
+// // //     }
+
+// // //     // Step 3: Get the final list of coaches after all filters
+// // //     const finalCoaches = coaches.filter(coach => 
+// // //       filteredCoachIds.some(id => id.toString() === coach._id.toString())
+// // //     );
+
+// // //     // Step 4: Apply pagination
+// // //     const total = finalCoaches.length;
+// // //     const paginatedCoaches = finalCoaches.slice(skip, skip + limitNum);
+
+// // //     // Step 5: Format the response data
+// // //     const coachData = await Promise.all(
+// // //       paginatedCoaches.map(async (coach) => {
+// // //         const user = coach.userId as any;
+
+// // //         // Get available time slots
+// // //         let availableTimes: string[] = [];
+// // //         let slotDate = '';
+// // //         let slotType = '';
+
+// // //         if (date) {
+// // //           const searchDate = new Date(date as string);
+// // //           const startOfDay = new Date(searchDate);
+// // //           startOfDay.setHours(0, 0, 0, 0);
+
+// // //           const endOfDay = new Date(searchDate);
+// // //           endOfDay.setHours(23, 59, 59, 999);
+
+// // //           // Find time slots for this coach on the specified date
+// // //           const timeSlotQuery: any = {
+// // //             coachId: coach._id,
+// // //             date: {
+// // //               $gte: startOfDay,
+// // //               $lte: endOfDay
+// // //             }
+// // //           };
+
+// // //           // Add time filter if provided
+// // //           if (time && time !== '') {
+// // //             timeSlotQuery['timeSlots'] = {
+// // //               $elemMatch: {
+// // //                 startTime: time,
+// // //                 isBooked: false
+// // //               }
+// // //             };
+// // //           }
+
+// // //           const slots = await TimeSlot.find(timeSlotQuery).lean();
+
+// // //           if (slots.length > 0) {
+// // //             // Use the actual date from slot
+// // //             slotDate = slots[0].date.toISOString().split('T')[0];
+// // //             slotType = slots[0].type;
+
+// // //             // Extract available times
+// // //             availableTimes = slots.flatMap(slot => 
+// // //               slot.timeSlots
+// // //                 .filter(t => !t.isBooked)
+// // //                 .map(t => t.startTime)
+// // //             );
+// // //           }
+// // //         }
+
+// // //         // Return formatted coach data
+// // //         return {
+// // //           id: coach._id,
+// // //           name: user ? `${user.firstName} ${user.lastName}` : '',
+// // //           firstName: user?.firstName || '',
+// // //           lastName: user?.lastName || '',
+// // //           title: coach.title || '',
+// // //           imageUrl: coach.profileImage || user?.profileImage || '',
+// // //           rating: coach.rating || 0,
+// // //           type: slotType || (activity as string) || coach.specializations?.[0] || '',
+// // //           specializations: coach.specializations || [],
+// // //           date: slotDate,
+// // //           availableTimes: availableTimes
+// // //         };
+// // //       })
+// // //     );
+
+// // //     // Step 6: Send the response
+// // //     res.status(200).json({
+// // //       content: coachData,
+// // //       pagination: {
+// // //         total,
+// // //         page: pageNum,
+// // //         limit: limitNum,
+// // //         pages: Math.ceil(total / limitNum)
+// // //       }
+// // //     });
+
+// // //   } catch (error) {
+// // //     console.error('Error searching coaches:', error);
+// // //     res.status(500).json({ 
+// // //       message: 'Failed to search coaches',
+// // //       error: error instanceof Error ? error.message : 'Unknown error'
+// // //     });
+// // //   }
+// // // };
+
+
+
 // // import { Request, Response } from 'express';
-// // import CoachInfo from '../models/coachInfo';
+// // // import CoachInfo from '../models/coachInfo';
 // // import TimeSlot from '../models/timeSlots';
+// // import axios from 'axios';
 
-// // const getWorkouts = async (req: Request, res: Response): Promise<void> => {
-// //   try {
-// //     const { activity, date, time, coachName } = req.params;
-
-// //     const query: any = {};
-// //     if (activity) query.specializations = { $in: [activity] };
-// //     if (coachName) query['userId.firstName'] = { $regex: coachName, $options: 'i' };
-
-// //     const coaches = await CoachInfo.find(query).populate('userId');
-
-// //     const coachData = await Promise.all(
-// //       coaches.map(async (coach) => {
-// //         let availableTimes: string[] = [];
-// //         let slotDate = '';
-
-// //         if (date) {
-// //           // ✅ Convert "08-05-2025" to "2025-05-08"
-// //           const [day, month, year] = date.split('-');
-// //           const formattedDate = `${year}-${month}-${day}`;
-// //           const startOfDay = new Date(formattedDate);
-// //           startOfDay.setHours(0, 0, 0, 0);
-
-// //           const endOfDay = new Date(formattedDate);
-// //           endOfDay.setHours(23, 59, 59, 999);
-
-// //           const slots = await TimeSlot.find({
-// //             coachId: coach._id,
-// //             date: {
-// //               $gte: startOfDay,
-// //               $lte: endOfDay,
-// //             },
-// //           });
-
-// //           if (slots.length > 0) {
-// //             // Use the actual date from slot
-// //             slotDate = slots[0].date.toISOString().split('T')[0];
-// //           }
-
-// //           availableTimes = slots.flatMap((slot) =>
-// //             slot.timeSlots
-// //               .filter((t) => !t.isBooked)
-// //               .map((t) => `${t.startTime} - ${t.endTime}`)
-// //           );
-// //         }
-
-// //         return {
-// //           id: coach._id,
-// //           name: (coach.userId as any)?.firstName || '',
-// //           title: coach.title,
-// //           imageUrl: coach.profileImage,
-// //           rating: coach.rating,
-// //           type: activity || coach.specializations[0] || '',
-// //           date: slotDate, // ✅ Now should correctly show date
-// //           availableTimes,
-// //         };
-// //       })
-// //     );
-
-// //     res.status(200).json({ content: coachData });
-// //   } catch (error) {
-// //     console.error('Error fetching workouts:', error);
-// //     res.status(500).json({ message: 'Failed to fetch workouts' });
-// //   }
-// // };
-
-// // export { getWorkouts };
-
-
-// // import { Request, Response } from 'express';
-// // import CoachInfo from '../models/coachInfo';
-// // import TimeSlot from '../models/timeSlots';
-// // import UserInfo from '../models/userInfo';
-// // import mongoose from 'mongoose';
 
 // // export const searchCoaches = async (req: Request, res: Response): Promise<void> => {
 // //   try {
@@ -83,21 +263,19 @@
 // //     const limitNum = parseInt(limit as string, 10);
 // //     const skip = (pageNum - 1) * limitNum;
 
-// //     // Step 1: Find coaches that match the activity and name criteria
-// //     let coachQuery: any = {};
-
-// //     // Filter by specialization if provided
-// //     if (activity && activity !== '') {
-// //       coachQuery.specializations = { $in: [activity] };
+// //     let response = await axios.get(
+// //     `${process.env.API_GATEWAY_URL}/auth/profile/getCoachesByActivity`, 
+// //     {
+// //       params: { activity }
 // //     }
+// //   );
 
-// //     // Get coaches based on the initial query
-// //     let coaches = await CoachInfo.find(coachQuery).populate('userId').lean();
+// //   let coaches= response.data;
 
 // //     // Filter by coach name if provided
 // //     if (coachName && coachName !== '') {
 // //       const nameRegex = new RegExp(String(coachName), 'i');
-// //       coaches = coaches.filter(coach => {
+// //       coaches = coaches.filter((coach: { userId: any; }) => {
 // //         const user = coach.userId as any;
 // //         if (!user) return false;
 
@@ -109,10 +287,11 @@
 // //     }
 
 // //     // Get coach IDs for time slot filtering
-// //     const coachIds = coaches.map(coach => coach._id);
+// //     const coachIds = coaches.map((coach: { _id: any; }) => coach._id);
 
 // //     // Step 2: Filter by date and time if provided
-// //     let filteredCoachIds = [...coachIds];
+// //     // Use any[] to avoid TypeScript issues with ObjectId vs string
+// //     let filteredCoachIds: any[] = [...coachIds];
 
 // //     if (date && date !== '') {
 // //       // Parse the date in YYYY-MM-DD format
@@ -145,13 +324,16 @@
 // //       // Find time slots matching the criteria
 // //       const availableSlots = await TimeSlot.find(timeSlotQuery).lean();
 
-// //       // Update filtered coach IDs
+// //       // Update filtered coach IDs - store as ObjectId objects
 // //       filteredCoachIds = availableSlots.map(slot => slot.coachId);
 // //     }
 
 // //     // Step 3: Get the final list of coaches after all filters
-// //     const finalCoaches = coaches.filter(coach => 
-// //       filteredCoachIds.some(id => id.toString() === coach._id.toString())
+// //     const finalCoaches = coaches.filter((coach: { _id: { toString: () => any; }; }) => 
+// //       filteredCoachIds.some(id => {
+// //         // Compare ObjectIds by converting both to strings
+// //         return id.toString() === coach._id.toString();
+// //       })
 // //     );
 
 // //     // Step 4: Apply pagination
@@ -160,15 +342,19 @@
 
 // //     // Step 5: Format the response data
 // //     const coachData = await Promise.all(
-// //       paginatedCoaches.map(async (coach) => {
+// //       paginatedCoaches.map(async (coach: { userId: any; _id: { toString: () => any; }; title: any; about: any; profileImage: any; rating: any; specializations: any[]; }) => {
 // //         const user = coach.userId as any;
 
 // //         // Get available time slots
-// //         let availableTimes: string[] = [];
+// //         let formattedTimeSlots: any[] = [];
 // //         let slotDate = '';
 // //         let slotType = '';
 
-// //         if (date) {
+// //         // Check if we're searching for a specific date
+// //         const isSearchingByDate = date && date !== '';
+
+// //         // If searching by date, get time slots for that date
+// //         if (isSearchingByDate) {
 // //           const searchDate = new Date(date as string);
 // //           const startOfDay = new Date(searchDate);
 // //           startOfDay.setHours(0, 0, 0, 0);
@@ -176,66 +362,184 @@
 // //           const endOfDay = new Date(searchDate);
 // //           endOfDay.setHours(23, 59, 59, 999);
 
+// //           // Check if the search date is today
+// //           const now = new Date();
+// //           const isToday = 
+// //             now.getFullYear() === searchDate.getFullYear() &&
+// //             now.getMonth() === searchDate.getMonth() &&
+// //             now.getDate() === searchDate.getDate();
+
 // //           // Find time slots for this coach on the specified date
-// //           const timeSlotQuery: any = {
+// //           const slots = await TimeSlot.find({
 // //             coachId: coach._id,
 // //             date: {
 // //               $gte: startOfDay,
 // //               $lte: endOfDay
 // //             }
-// //           };
+// //           }).lean();
 
-// //           // Add time filter if provided
-// //           if (time && time !== '') {
-// //             timeSlotQuery['timeSlots'] = {
-// //               $elemMatch: {
-// //                 startTime: time,
-// //                 isBooked: false
-// //               }
-// //             };
+// //           // Process each time slot document
+// //           for (const slot of slots) {
+// //             if (slot.timeSlots && Array.isArray(slot.timeSlots)) {
+// //               slotDate = slot.date.toISOString().split('T')[0];
+// //               slotType = slot.type;
+
+// //               // Filter and format time slots
+// //               const availableSlots = slot.timeSlots.filter(t => {
+// //                 // Filter out booked slots
+// //                 if (t.isBooked) return false;
+
+// //                 // For today, filter out past time slots
+// //                 if (isToday) {
+// //                   const [hours, minutes] = t.startTime.split(':').map(Number);
+// //                   const slotTime = new Date();
+// //                   slotTime.setHours(hours, minutes, 0, 0);
+
+// //                   // Only include future time slots
+// //                   return slotTime > now;
+// //                 }
+
+// //                 return true;
+// //               });
+
+// //               // Format available slots
+// //               availableSlots.forEach(t => {
+// //                 // Calculate duration
+// //                 const [startHours, startMinutes] = t.startTime.split(':').map(Number);
+// //                 const [endHours, endMinutes] = t.endTime.split(':').map(Number);
+
+// //                 const startTotalMinutes = startHours * 60 + startMinutes;
+// //                 const endTotalMinutes = endHours * 60 + endMinutes;
+
+// //                 const durationMinutes = endTotalMinutes - startTotalMinutes;
+// //                 let duration = '';
+
+// //                 if (durationMinutes > 0) {
+// //                   const hours = Math.floor(durationMinutes / 60);
+// //                   const minutes = durationMinutes % 60;
+
+// //                   duration = hours > 0 
+// //                     ? `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`
+// //                     : `${minutes}m`;
+// //                 }
+
+// //                 formattedTimeSlots.push({
+// //                   start: t.startTime,
+// //                   end: t.endTime,
+// //                   date: slotDate,
+// //                   isBooked: t.isBooked,
+// //                   duration: duration,
+// //                   type: slot.type
+// //                 });
+// //               });
+// //             }
 // //           }
+// //         } else {
+// //           // If not searching by date, get all future time slots
+// //           const now = new Date();
+// //           const slots = await TimeSlot.find({
+// //             coachId: coach._id,
+// //             date: { $gte: now }
+// //           }).sort({ date: 1 }).lean();
 
-// //           const slots = await TimeSlot.find(timeSlotQuery).lean();
+// //           // Process each time slot document
+// //           for (const slot of slots) {
+// //             if (slot.timeSlots && Array.isArray(slot.timeSlots)) {
+// //               const slotDate = slot.date.toISOString().split('T')[0];
 
-// //           if (slots.length > 0) {
-// //             // Use the actual date from slot
-// //             slotDate = slots[0].date.toISOString().split('T')[0];
-// //             slotType = slots[0].type;
+// //               // Check if this slot is for today
+// //               const slotDateObj = new Date(slot.date);
+// //               const isSlotToday = 
+// //                 now.getFullYear() === slotDateObj.getFullYear() &&
+// //                 now.getMonth() === slotDateObj.getMonth() &&
+// //                 now.getDate() === slotDateObj.getDate();
 
-// //             // Extract available times
-// //             availableTimes = slots.flatMap(slot => 
-// //               slot.timeSlots
-// //                 .filter(t => !t.isBooked)
-// //                 .map(t => t.startTime)
-// //             );
+// //               // Filter and format time slots
+// //               const availableSlots = slot.timeSlots.filter(t => {
+// //                 // Filter out booked slots
+// //                 if (t.isBooked) return false;
+
+// //                 // For today, filter out past time slots
+// //                 if (isSlotToday) {
+// //                   const [hours, minutes] = t.startTime.split(':').map(Number);
+// //                   const slotTime = new Date();
+// //                   slotTime.setHours(hours, minutes, 0, 0);
+
+// //                   // Only include future time slots
+// //                   return slotTime > now;
+// //                 }
+
+// //                 return true;
+// //               });
+
+// //               // Format available slots
+// //               availableSlots.forEach(t => {
+// //                 // Calculate duration
+// //                 const [startHours, startMinutes] = t.startTime.split(':').map(Number);
+// //                 const [endHours, endMinutes] = t.endTime.split(':').map(Number);
+
+// //                 const startTotalMinutes = startHours * 60 + startMinutes;
+// //                 const endTotalMinutes = endHours * 60 + endMinutes;
+
+// //                 const durationMinutes = endTotalMinutes - startTotalMinutes;
+// //                 let duration = '';
+
+// //                 if (durationMinutes > 0) {
+// //                   const hours = Math.floor(durationMinutes / 60);
+// //                   const minutes = durationMinutes % 60;
+
+// //                   duration = hours > 0 
+// //                     ? `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`
+// //                     : `${minutes}m`;
+// //                 }
+
+// //                 formattedTimeSlots.push({
+// //                   start: t.startTime,
+// //                   end: t.endTime,
+// //                   date: slotDate,
+// //                   isBooked: t.isBooked,
+// //                   duration: duration,
+// //                   type: slot.type
+// //                 });
+// //               });
+// //             }
 // //           }
 // //         }
 
+// //         // Get the first available time slot for display
+// //         const firstSlot = formattedTimeSlots.length > 0 ? formattedTimeSlots[0] : null;
+
 // //         // Return formatted coach data
 // //         return {
-// //           id: coach._id,
+// //           id: coach._id.toString(),  // Convert ObjectId to string
 // //           name: user ? `${user.firstName} ${user.lastName}` : '',
 // //           firstName: user?.firstName || '',
 // //           lastName: user?.lastName || '',
+
 // //           title: coach.title || '',
+// //           about: coach.about || '',
 // //           imageUrl: coach.profileImage || user?.profileImage || '',
 // //           rating: coach.rating || 0,
-// //           type: slotType || (activity as string) || coach.specializations?.[0] || '',
+// //           type: firstSlot?.type || (activity as string) || coach.specializations?.[0] || '',
 // //           specializations: coach.specializations || [],
-// //           date: slotDate,
-// //           availableTimes: availableTimes
+// //           date: firstSlot?.date || '',
+// //           duration: firstSlot?.duration || '',
+// //           timeSlots: formattedTimeSlots
 // //         };
 // //       })
 // //     );
 
+// //     // Filter out coaches with no available time slots
+// //     const coachesWithTimeSlots = coachData.filter(coach => coach.timeSlots.length > 0);
+
 // //     // Step 6: Send the response
 // //     res.status(200).json({
-// //       content: coachData,
+// //       content: coachesWithTimeSlots,
 // //       pagination: {
-// //         total,
+// //         total: coachesWithTimeSlots.length,
 // //         page: pageNum,
 // //         limit: limitNum,
-// //         pages: Math.ceil(total / limitNum)
+// //         pages: Math.ceil(coachesWithTimeSlots.length / limitNum)
 // //       }
 // //     });
 
@@ -249,28 +553,35 @@
 // // };
 
 
-
 // import { Request, Response } from 'express';
 // // import CoachInfo from '../models/coachInfo';
 // import TimeSlot from '../models/timeSlots';
+// // import UserInfo from '../models/userInfo';
+// import mongoose from 'mongoose';
 // import axios from 'axios';
-
-
 // export const searchCoaches = async (req: Request, res: Response): Promise<void> => {
 //   try {
-//     const { activity, date, time, coachName, page = '1', limit = '10' } = req.query;
+//     const { type, date, time, coachName, page = '1', limit = '10' } = req.query;
 //     const pageNum = parseInt(page as string, 10);
 //     const limitNum = parseInt(limit as string, 10);
 //     const skip = (pageNum - 1) * limitNum;
 
-//     let response = await axios.get(
-//     `${process.env.API_GATEWAY_URL}/auth/profile/getCoachesByActivity`, 
-//     {
-//       params: { activity }
-//     }
-//   );
+//     // Debug the incoming parameters
+//     console.log('Search parameters:', { type, date, time, coachName, page, limit });
 
-//   let coaches= response.data;
+//     // // Step 1: Find coaches by name if provided, otherwise get all coaches
+//     // let coachQuery: any = {};
+
+//     // // Get all coaches initially (don't filter by specialization)
+//     // let coaches = await CoachInfo.find(coachQuery).populate('userId').lean();
+//     // console.log(`Found ${coaches.length} coaches initially`);
+
+
+//     let response = await axios.get(
+//       `${process.env.API_GATEWAY_URL}/auth/profile/getCoachesByActivity`
+//     );
+
+//     let coaches = response.data;
 
 //     // Filter by coach name if provided
 //     if (coachName && coachName !== '') {
@@ -280,21 +591,27 @@
 //         if (!user) return false;
 
 //         const fullName = `${user.firstName} ${user.lastName}`;
-//         return nameRegex.test(user.firstName) || 
-//                nameRegex.test(user.lastName) || 
-//                nameRegex.test(fullName);
+//         return nameRegex.test(user.firstName) ||
+//           nameRegex.test(user.lastName) ||
+//           nameRegex.test(fullName);
 //       });
+//       console.log(`After name filter: ${coaches.length} coaches remaining`);
 //     }
 
 //     // Get coach IDs for time slot filtering
 //     const coachIds = coaches.map((coach: { _id: any; }) => coach._id);
 
-//     // Step 2: Filter by date and time if provided
+//     // Step 2: Filter by type, date, and time in the TimeSlot model
 //     // Use any[] to avoid TypeScript issues with ObjectId vs string
 //     let filteredCoachIds: any[] = [...coachIds];
 
+//     // Build the time slot query
+//     let timeSlotQuery: any = {
+//       coachId: { $in: coachIds }
+//     };
+
+//     // Add date filter if provided
 //     if (date && date !== '') {
-//       // Parse the date in YYYY-MM-DD format
 //       const searchDate = new Date(date as string);
 //       const startOfDay = new Date(searchDate);
 //       startOfDay.setHours(0, 0, 0, 0);
@@ -302,39 +619,61 @@
 //       const endOfDay = new Date(searchDate);
 //       endOfDay.setHours(23, 59, 59, 999);
 
-//       // Build time slot query
-//       let timeSlotQuery: any = {
-//         coachId: { $in: coachIds },
-//         date: {
-//           $gte: startOfDay,
-//           $lte: endOfDay
-//         }
+//       timeSlotQuery.date = {
+//         $gte: startOfDay,
+//         $lte: endOfDay
 //       };
-
-//       // Add time filter if provided
-//       if (time && time !== '') {
-//         timeSlotQuery['timeSlots'] = {
-//           $elemMatch: {
-//             startTime: time,
-//             isBooked: false
-//           }
-//         };
-//       }
-
-//       // Find time slots matching the criteria
-//       const availableSlots = await TimeSlot.find(timeSlotQuery).lean();
-
-//       // Update filtered coach IDs - store as ObjectId objects
-//       filteredCoachIds = availableSlots.map(slot => slot.coachId);
+//     } else {
+//       // If no date provided, only show future time slots
+//       timeSlotQuery.date = { $gte: new Date() };
 //     }
 
+//     // Add type filter if provided - use regex for case-insensitive matching
+//     if (type && type !== '') {
+//       timeSlotQuery.type = { $regex: new RegExp(String(type), 'i') };
+//     }
+
+//     // Add time filter if provided
+//     if (time && time !== '') {
+//       timeSlotQuery['timeSlots'] = {
+//         $elemMatch: {
+//           startTime: time,
+//           isBooked: false
+//         }
+//       };
+//     }
+
+//     // Find time slots matching the criteria
+//     const availableSlots = await TimeSlot.find(timeSlotQuery).lean();
+//     console.log(`Found ${availableSlots.length} time slots matching criteria`);
+
+//     // If we have filters but no matching slots, we should return empty results
+//     if ((type || date || time) && availableSlots.length === 0) {
+//       console.log('No time slots found for the given criteria');
+//       res.status(200).json({
+//         content: [],
+//         pagination: {
+//           total: 0,
+//           page: pageNum,
+//           limit: limitNum,
+//           pages: 0
+//         }
+//       });
+//       return;
+//     }
+
+//     // Update filtered coach IDs based on time slots
+//     filteredCoachIds = availableSlots.map(slot => slot.coachId);
+//     console.log(`Filtered to ${filteredCoachIds.length} coaches with matching time slots`);
+
 //     // Step 3: Get the final list of coaches after all filters
-//     const finalCoaches = coaches.filter((coach: { _id: { toString: () => any; }; }) => 
+//     const finalCoaches = coaches.filter((coach: { _id: { toString: () => any; }; }) =>
 //       filteredCoachIds.some(id => {
 //         // Compare ObjectIds by converting both to strings
 //         return id.toString() === coach._id.toString();
 //       })
 //     );
+//     console.log(`Final coaches count after all filters: ${finalCoaches.length}`);
 
 //     // Step 4: Apply pagination
 //     const total = finalCoaches.length;
@@ -342,19 +681,19 @@
 
 //     // Step 5: Format the response data
 //     const coachData = await Promise.all(
-//       paginatedCoaches.map(async (coach: { userId: any; _id: { toString: () => any; }; title: any; about: any; profileImage: any; rating: any; specializations: any[]; }) => {
+//       paginatedCoaches.map(async (coach: { userId: any; _id: { toString: () => any; }; title: any; about: any; profileImage: any; rating: any; specializations: any; }) => {
 //         const user = coach.userId as any;
 
 //         // Get available time slots
 //         let formattedTimeSlots: any[] = [];
-//         let slotDate = '';
-//         let slotType = '';
 
-//         // Check if we're searching for a specific date
-//         const isSearchingByDate = date && date !== '';
+//         // Build query for time slots for this coach
+//         let slotQuery: any = {
+//           coachId: coach._id
+//         };
 
-//         // If searching by date, get time slots for that date
-//         if (isSearchingByDate) {
+//         // Add date filter if provided
+//         if (date && date !== '') {
 //           const searchDate = new Date(date as string);
 //           const startOfDay = new Date(searchDate);
 //           startOfDay.setHours(0, 0, 0, 0);
@@ -362,147 +701,89 @@
 //           const endOfDay = new Date(searchDate);
 //           endOfDay.setHours(23, 59, 59, 999);
 
-//           // Check if the search date is today
-//           const now = new Date();
-//           const isToday = 
-//             now.getFullYear() === searchDate.getFullYear() &&
-//             now.getMonth() === searchDate.getMonth() &&
-//             now.getDate() === searchDate.getDate();
-
-//           // Find time slots for this coach on the specified date
-//           const slots = await TimeSlot.find({
-//             coachId: coach._id,
-//             date: {
-//               $gte: startOfDay,
-//               $lte: endOfDay
-//             }
-//           }).lean();
-
-//           // Process each time slot document
-//           for (const slot of slots) {
-//             if (slot.timeSlots && Array.isArray(slot.timeSlots)) {
-//               slotDate = slot.date.toISOString().split('T')[0];
-//               slotType = slot.type;
-
-//               // Filter and format time slots
-//               const availableSlots = slot.timeSlots.filter(t => {
-//                 // Filter out booked slots
-//                 if (t.isBooked) return false;
-
-//                 // For today, filter out past time slots
-//                 if (isToday) {
-//                   const [hours, minutes] = t.startTime.split(':').map(Number);
-//                   const slotTime = new Date();
-//                   slotTime.setHours(hours, minutes, 0, 0);
-
-//                   // Only include future time slots
-//                   return slotTime > now;
-//                 }
-
-//                 return true;
-//               });
-
-//               // Format available slots
-//               availableSlots.forEach(t => {
-//                 // Calculate duration
-//                 const [startHours, startMinutes] = t.startTime.split(':').map(Number);
-//                 const [endHours, endMinutes] = t.endTime.split(':').map(Number);
-
-//                 const startTotalMinutes = startHours * 60 + startMinutes;
-//                 const endTotalMinutes = endHours * 60 + endMinutes;
-
-//                 const durationMinutes = endTotalMinutes - startTotalMinutes;
-//                 let duration = '';
-
-//                 if (durationMinutes > 0) {
-//                   const hours = Math.floor(durationMinutes / 60);
-//                   const minutes = durationMinutes % 60;
-
-//                   duration = hours > 0 
-//                     ? `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`
-//                     : `${minutes}m`;
-//                 }
-
-//                 formattedTimeSlots.push({
-//                   start: t.startTime,
-//                   end: t.endTime,
-//                   date: slotDate,
-//                   isBooked: t.isBooked,
-//                   duration: duration,
-//                   type: slot.type
-//                 });
-//               });
-//             }
-//           }
+//           slotQuery.date = {
+//             $gte: startOfDay,
+//             $lte: endOfDay
+//           };
 //         } else {
-//           // If not searching by date, get all future time slots
-//           const now = new Date();
-//           const slots = await TimeSlot.find({
-//             coachId: coach._id,
-//             date: { $gte: now }
-//           }).sort({ date: 1 }).lean();
+//           // If no date provided, only show future time slots
+//           slotQuery.date = { $gte: new Date() };
+//         }
 
-//           // Process each time slot document
-//           for (const slot of slots) {
-//             if (slot.timeSlots && Array.isArray(slot.timeSlots)) {
-//               const slotDate = slot.date.toISOString().split('T')[0];
+//         // Add type filter if provided
+//         if (type && type !== '') {
+//           slotQuery.type = { $regex: new RegExp(String(type), 'i') };
+//         }
 
-//               // Check if this slot is for today
-//               const slotDateObj = new Date(slot.date);
-//               const isSlotToday = 
-//                 now.getFullYear() === slotDateObj.getFullYear() &&
-//                 now.getMonth() === slotDateObj.getMonth() &&
-//                 now.getDate() === slotDateObj.getDate();
+//         // Find time slots for this coach
+//         const slots = await TimeSlot.find(slotQuery).sort({ date: 1 }).lean();
 
-//               // Filter and format time slots
-//               const availableSlots = slot.timeSlots.filter(t => {
-//                 // Filter out booked slots
-//                 if (t.isBooked) return false;
+//         // Process each time slot document
+//         for (const slot of slots) {
+//           if (slot.timeSlots && Array.isArray(slot.timeSlots)) {
+//             const slotDate = slot.date.toISOString().split('T')[0];
 
-//                 // For today, filter out past time slots
-//                 if (isSlotToday) {
-//                   const [hours, minutes] = t.startTime.split(':').map(Number);
-//                   const slotTime = new Date();
-//                   slotTime.setHours(hours, minutes, 0, 0);
+//             // Check if this slot is for today
+//             const now = new Date();
+//             const slotDateObj = new Date(slot.date);
+//             const isSlotToday =
+//               now.getFullYear() === slotDateObj.getFullYear() &&
+//               now.getMonth() === slotDateObj.getMonth() &&
+//               now.getDate() === slotDateObj.getDate();
 
-//                   // Only include future time slots
-//                   return slotTime > now;
-//                 }
+//             // Filter and format time slots
+//             const availableSlots = slot.timeSlots.filter(t => {
+//               // Filter out booked slots
+//               if (t.isBooked) return false;
 
-//                 return true;
+//               // For today, filter out past time slots
+//               if (isSlotToday) {
+//                 const [hours, minutes] = t.startTime.split(':').map(Number);
+//                 const slotTime = new Date();
+//                 slotTime.setHours(hours, minutes, 0, 0);
+
+//                 // Only include future time slots
+//                 return slotTime > now;
+//               }
+
+//               // Filter by specific time if provided
+//               if (time && time !== '' && t.startTime !== time) {
+//                 return false;
+//               }
+
+//               return true;
+//             });
+
+//             // Format available slots
+//             availableSlots.forEach(t => {
+//               // Calculate duration
+//               const [startHours, startMinutes] = t.startTime.split(':').map(Number);
+//               const [endHours, endMinutes] = t.endTime.split(':').map(Number);
+
+//               const startTotalMinutes = startHours * 60 + startMinutes;
+//               const endTotalMinutes = endHours * 60 + endMinutes;
+
+//               const durationMinutes = endTotalMinutes - startTotalMinutes;
+//               let duration = '';
+
+//               if (durationMinutes > 0) {
+//                 const hours = Math.floor(durationMinutes / 60);
+//                 const minutes = durationMinutes % 60;
+
+//                 duration = hours > 0
+//                   ? `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`
+//                   : `${minutes}m`;
+//               }
+
+//               formattedTimeSlots.push({
+//                 start: t.startTime,
+//                 end: t.endTime,
+//                 date: slotDate,
+//                 isBooked: t.isBooked,
+//                 duration: duration,
+//                 type: slot.type
 //               });
-
-//               // Format available slots
-//               availableSlots.forEach(t => {
-//                 // Calculate duration
-//                 const [startHours, startMinutes] = t.startTime.split(':').map(Number);
-//                 const [endHours, endMinutes] = t.endTime.split(':').map(Number);
-
-//                 const startTotalMinutes = startHours * 60 + startMinutes;
-//                 const endTotalMinutes = endHours * 60 + endMinutes;
-
-//                 const durationMinutes = endTotalMinutes - startTotalMinutes;
-//                 let duration = '';
-
-//                 if (durationMinutes > 0) {
-//                   const hours = Math.floor(durationMinutes / 60);
-//                   const minutes = durationMinutes % 60;
-
-//                   duration = hours > 0 
-//                     ? `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`
-//                     : `${minutes}m`;
-//                 }
-
-//                 formattedTimeSlots.push({
-//                   start: t.startTime,
-//                   end: t.endTime,
-//                   date: slotDate,
-//                   isBooked: t.isBooked,
-//                   duration: duration,
-//                   type: slot.type
-//                 });
-//               });
-//             }
+//             });
 //           }
 //         }
 
@@ -515,12 +796,11 @@
 //           name: user ? `${user.firstName} ${user.lastName}` : '',
 //           firstName: user?.firstName || '',
 //           lastName: user?.lastName || '',
-
 //           title: coach.title || '',
 //           about: coach.about || '',
 //           imageUrl: coach.profileImage || user?.profileImage || '',
 //           rating: coach.rating || 0,
-//           type: firstSlot?.type || (activity as string) || coach.specializations?.[0] || '',
+//           type: firstSlot?.type || '',  // Only use type from time slots
 //           specializations: coach.specializations || [],
 //           date: firstSlot?.date || '',
 //           duration: firstSlot?.duration || '',
@@ -531,6 +811,7 @@
 
 //     // Filter out coaches with no available time slots
 //     const coachesWithTimeSlots = coachData.filter(coach => coach.timeSlots.length > 0);
+//     console.log(`Final response: ${coachesWithTimeSlots.length} coaches with available time slots`);
 
 //     // Step 6: Send the response
 //     res.status(200).json({
@@ -545,7 +826,7 @@
 
 //   } catch (error) {
 //     console.error('Error searching coaches:', error);
-//     res.status(500).json({ 
+//     res.status(500).json({
 //       message: 'Failed to search coaches',
 //       error: error instanceof Error ? error.message : 'Unknown error'
 //     });
@@ -553,12 +834,12 @@
 // };
 
 
+
 import { Request, Response } from 'express';
-// import CoachInfo from '../models/coachInfo';
+import CoachInfo from '../models/coachInfo';
 import TimeSlot from '../models/timeSlots';
-// import UserInfo from '../models/userInfo';
+import UserInfo from '../models/userInfo';
 import mongoose from 'mongoose';
-import axios from 'axios';
 export const searchCoaches = async (req: Request, res: Response): Promise<void> => {
   try {
     const { type, date, time, coachName, page = '1', limit = '10' } = req.query;
@@ -569,56 +850,49 @@ export const searchCoaches = async (req: Request, res: Response): Promise<void> 
     // Debug the incoming parameters
     console.log('Search parameters:', { type, date, time, coachName, page, limit });
 
-    // // Step 1: Find coaches by name if provided, otherwise get all coaches
-    // let coachQuery: any = {};
-
-    // // Get all coaches initially (don't filter by specialization)
-    // let coaches = await CoachInfo.find(coachQuery).populate('userId').lean();
-    // console.log(`Found ${coaches.length} coaches initially`);
-
-
-    let response = await axios.get(
-      `${process.env.API_GATEWAY_URL}/auth/profile/getCoachesByActivity`
-    );
-
-    let coaches = response.data;
-
+    // Step 1: Find coaches by name if provided, otherwise get all coaches
+    let coachQuery: any = {};
+    
+    // Get all coaches initially (don't filter by specialization)
+    let coaches = await CoachInfo.find(coachQuery).populate('userId').lean();
+    console.log(`Found ${coaches.length} coaches initially`);
+    
     // Filter by coach name if provided
     if (coachName && coachName !== '') {
       const nameRegex = new RegExp(String(coachName), 'i');
-      coaches = coaches.filter((coach: { userId: any; }) => {
+      coaches = coaches.filter(coach => {
         const user = coach.userId as any;
         if (!user) return false;
-
+        
         const fullName = `${user.firstName} ${user.lastName}`;
-        return nameRegex.test(user.firstName) ||
-          nameRegex.test(user.lastName) ||
-          nameRegex.test(fullName);
+        return nameRegex.test(user.firstName) || 
+               nameRegex.test(user.lastName) || 
+               nameRegex.test(fullName);
       });
       console.log(`After name filter: ${coaches.length} coaches remaining`);
     }
-
+    
     // Get coach IDs for time slot filtering
-    const coachIds = coaches.map((coach: { _id: any; }) => coach._id);
-
+    const coachIds = coaches.map(coach => coach._id);
+    
     // Step 2: Filter by type, date, and time in the TimeSlot model
     // Use any[] to avoid TypeScript issues with ObjectId vs string
     let filteredCoachIds: any[] = [...coachIds];
-
+    
     // Build the time slot query
     let timeSlotQuery: any = {
       coachId: { $in: coachIds }
     };
-
+    
     // Add date filter if provided
     if (date && date !== '') {
       const searchDate = new Date(date as string);
       const startOfDay = new Date(searchDate);
       startOfDay.setHours(0, 0, 0, 0);
-
+      
       const endOfDay = new Date(searchDate);
       endOfDay.setHours(23, 59, 59, 999);
-
+      
       timeSlotQuery.date = {
         $gte: startOfDay,
         $lte: endOfDay
@@ -627,12 +901,12 @@ export const searchCoaches = async (req: Request, res: Response): Promise<void> 
       // If no date provided, only show future time slots
       timeSlotQuery.date = { $gte: new Date() };
     }
-
+    
     // Add type filter if provided - use regex for case-insensitive matching
     if (type && type !== '') {
       timeSlotQuery.type = { $regex: new RegExp(String(type), 'i') };
     }
-
+    
     // Add time filter if provided
     if (time && time !== '') {
       timeSlotQuery['timeSlots'] = {
@@ -642,11 +916,11 @@ export const searchCoaches = async (req: Request, res: Response): Promise<void> 
         }
       };
     }
-
+    
     // Find time slots matching the criteria
     const availableSlots = await TimeSlot.find(timeSlotQuery).lean();
     console.log(`Found ${availableSlots.length} time slots matching criteria`);
-
+    
     // If we have filters but no matching slots, we should return empty results
     if ((type || date || time) && availableSlots.length === 0) {
       console.log('No time slots found for the given criteria');
@@ -661,46 +935,46 @@ export const searchCoaches = async (req: Request, res: Response): Promise<void> 
       });
       return;
     }
-
+    
     // Update filtered coach IDs based on time slots
     filteredCoachIds = availableSlots.map(slot => slot.coachId);
     console.log(`Filtered to ${filteredCoachIds.length} coaches with matching time slots`);
-
+    
     // Step 3: Get the final list of coaches after all filters
-    const finalCoaches = coaches.filter((coach: { _id: { toString: () => any; }; }) =>
+    const finalCoaches = coaches.filter(coach => 
       filteredCoachIds.some(id => {
         // Compare ObjectIds by converting both to strings
         return id.toString() === coach._id.toString();
       })
     );
     console.log(`Final coaches count after all filters: ${finalCoaches.length}`);
-
+    
     // Step 4: Apply pagination
     const total = finalCoaches.length;
     const paginatedCoaches = finalCoaches.slice(skip, skip + limitNum);
-
+    
     // Step 5: Format the response data
     const coachData = await Promise.all(
-      paginatedCoaches.map(async (coach: { userId: any; _id: { toString: () => any; }; title: any; about: any; profileImage: any; rating: any; specializations: any; }) => {
+      paginatedCoaches.map(async (coach) => {
         const user = coach.userId as any;
-
+        
         // Get available time slots
         let formattedTimeSlots: any[] = [];
-
+        
         // Build query for time slots for this coach
         let slotQuery: any = {
           coachId: coach._id
         };
-
+        
         // Add date filter if provided
         if (date && date !== '') {
           const searchDate = new Date(date as string);
           const startOfDay = new Date(searchDate);
           startOfDay.setHours(0, 0, 0, 0);
-
+          
           const endOfDay = new Date(searchDate);
           endOfDay.setHours(23, 59, 59, 999);
-
+          
           slotQuery.date = {
             $gte: startOfDay,
             $lte: endOfDay
@@ -709,72 +983,72 @@ export const searchCoaches = async (req: Request, res: Response): Promise<void> 
           // If no date provided, only show future time slots
           slotQuery.date = { $gte: new Date() };
         }
-
+        
         // Add type filter if provided
         if (type && type !== '') {
           slotQuery.type = { $regex: new RegExp(String(type), 'i') };
         }
-
+        
         // Find time slots for this coach
         const slots = await TimeSlot.find(slotQuery).sort({ date: 1 }).lean();
-
+        
         // Process each time slot document
         for (const slot of slots) {
           if (slot.timeSlots && Array.isArray(slot.timeSlots)) {
             const slotDate = slot.date.toISOString().split('T')[0];
-
+            
             // Check if this slot is for today
             const now = new Date();
             const slotDateObj = new Date(slot.date);
-            const isSlotToday =
+            const isSlotToday = 
               now.getFullYear() === slotDateObj.getFullYear() &&
               now.getMonth() === slotDateObj.getMonth() &&
               now.getDate() === slotDateObj.getDate();
-
+            
             // Filter and format time slots
             const availableSlots = slot.timeSlots.filter(t => {
               // Filter out booked slots
               if (t.isBooked) return false;
-
+              
               // For today, filter out past time slots
               if (isSlotToday) {
                 const [hours, minutes] = t.startTime.split(':').map(Number);
                 const slotTime = new Date();
                 slotTime.setHours(hours, minutes, 0, 0);
-
+                
                 // Only include future time slots
                 return slotTime > now;
               }
-
+              
               // Filter by specific time if provided
               if (time && time !== '' && t.startTime !== time) {
                 return false;
               }
-
+              
               return true;
             });
-
+            
             // Format available slots
             availableSlots.forEach(t => {
               // Calculate duration
               const [startHours, startMinutes] = t.startTime.split(':').map(Number);
               const [endHours, endMinutes] = t.endTime.split(':').map(Number);
-
+              
               const startTotalMinutes = startHours * 60 + startMinutes;
               const endTotalMinutes = endHours * 60 + endMinutes;
-
+              
               const durationMinutes = endTotalMinutes - startTotalMinutes;
               let duration = '';
-
+              
               if (durationMinutes > 0) {
                 const hours = Math.floor(durationMinutes / 60);
                 const minutes = durationMinutes % 60;
-
-                duration = hours > 0
+                
+                duration = hours > 0 
                   ? `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`
                   : `${minutes}m`;
               }
-
+              
               formattedTimeSlots.push({
                 start: t.startTime,
                 end: t.endTime,
@@ -786,10 +1060,10 @@ export const searchCoaches = async (req: Request, res: Response): Promise<void> 
             });
           }
         }
-
+        
         // Get the first available time slot for display
         const firstSlot = formattedTimeSlots.length > 0 ? formattedTimeSlots[0] : null;
-
+        
         // Return formatted coach data
         return {
           id: coach._id.toString(),  // Convert ObjectId to string
@@ -808,11 +1082,11 @@ export const searchCoaches = async (req: Request, res: Response): Promise<void> 
         };
       })
     );
-
+    
     // Filter out coaches with no available time slots
     const coachesWithTimeSlots = coachData.filter(coach => coach.timeSlots.length > 0);
     console.log(`Final response: ${coachesWithTimeSlots.length} coaches with available time slots`);
-
+    
     // Step 6: Send the response
     res.status(200).json({
       content: coachesWithTimeSlots,
@@ -823,10 +1097,10 @@ export const searchCoaches = async (req: Request, res: Response): Promise<void> 
         pages: Math.ceil(coachesWithTimeSlots.length / limitNum)
       }
     });
-
+    
   } catch (error) {
     console.error('Error searching coaches:', error);
-    res.status(500).json({
+    res.status(500).json({ 
       message: 'Failed to search coaches',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
