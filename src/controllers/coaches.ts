@@ -13,10 +13,10 @@ export const getCoachDetail = async (
   try {
     // const coaches = await CoachInfo.find().populate('userId');
     let response = await axios.get(
-      `${process.env.API_GATEWAY_URL}/auth/profile/coachInfo`
+      `${process.env.API_GATEWAY_URL}/auth/auth/coachInfo`
     );
 
-    let coaches = response.data;
+    let coaches: any = response.data.data;
 
     if (!coaches || coaches.length === 0) {
       res.status(404).json({ message: "No coaches found" });
