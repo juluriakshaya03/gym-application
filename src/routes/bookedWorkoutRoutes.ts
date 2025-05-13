@@ -16,7 +16,7 @@ import { protect } from '../middlewares/authMiddleware';
 
 const router = express.Router();
 
-router.get('/', getAllBookedWorkouts);
+router.get('/', protect, getAllBookedWorkouts);
 
 
 export default router;
