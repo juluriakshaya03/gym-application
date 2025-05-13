@@ -59,6 +59,7 @@ export const getCoachDetail = async (
 ): Promise<void> => {
   try {
     const coaches = await CoachInfo.find().populate('userId');
+    console.log(coaches);
 
     if (!coaches || coaches.length === 0) {
       res.status(404).json({ message: "No coaches found" });
